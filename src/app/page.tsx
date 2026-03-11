@@ -5,7 +5,8 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import ChatWindow from '@/components/ChatWindow';
-import { getSocket, IMessage } from '@/lib/socket';
+import { pusherClient } from '@/lib/pusherClient';
+import { IMessage } from '@/models/Message';
 
 export default function Home() {
   const { data: session, status } = useSession();
@@ -30,7 +31,7 @@ export default function Home() {
     }
   }, [status, router]);
 
-  // Combine all socket logic into one stable effect
+  // Combine all Pusher logic into one stable effect
   useEffect(() => {
     if (status !== 'authenticated' || !session?.user) return;
     
@@ -40,18 +41,14 @@ export default function Home() {
       if (data.length > 0) handleSelectUser(data[0]);
     });
 
-    const socket = getSocket();
     const myId = (session.user as any).id;
-
-    // Use a ref for the latest state to avoid stale closures in event listeners
-    // without making the effect depend on `messages` or `activeUser`
-    const onConnect = () => {
-      console.log('Socket connected, registering user:', myId);
-      socket.emit('register_user', myId);
-    };
+    const channelName = `user-${myId}`;
+    
+    // Subscribe to personal pusher channel for incoming messages
+    const channel = pusherClient.subscribe(channelName);
 
     const onReceiveMessage = (msg: IMessage) => {
-      console.log('Received message:', msg);
+      console.log('Received message via Pusher:', msg);
       const peerId = msg.senderId === myId ? msg.receiverId : msg.senderId;
       
       if (msg.senderId !== myId) {
@@ -82,16 +79,11 @@ export default function Home() {
       });
     };
 
-    if (socket.connected) {
-      onConnect();
-    }
-
-    socket.on('connect', onConnect);
-    socket.on('receive_message', onReceiveMessage);
+    channel.bind('receive_message', onReceiveMessage);
 
     return () => {
-      socket.off('connect', onConnect);
-      socket.off('receive_message', onReceiveMessage);
+      pusherClient.unsubscribe(channelName);
+      channel.unbind_all();
     };
   }, [status, (session?.user as any)?.id]); // Only re-run if auth ID completely changes
 
@@ -125,8 +117,12 @@ export default function Home() {
       };
     });
 
-    // Send to server
-    getSocket().emit('send_message', newMsg);
+    // Send to server via REST API (Pusher will broadcast it back to receiver and other tabs)
+    fetch('/api/messages/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newMsg)
+    }).catch(err => console.error("Failed to send message", err));
   };
 
   if (status === 'loading' || !session) {

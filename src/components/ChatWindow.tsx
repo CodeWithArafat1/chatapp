@@ -3,7 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import MessageInput from './MessageInput';
 import './ChatWindow.css';
-import { IMessage } from '../lib/socket';
+import { IMessage } from '../models/Message';
 
 interface ChatWindowProps {
   peer: any;
