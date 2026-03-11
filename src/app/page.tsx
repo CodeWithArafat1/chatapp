@@ -14,6 +14,7 @@ export default function Home() {
 
   const [users, setUsers] = useState<any[]>([]);
   const [activeUser, setActiveUser] = useState<any>(null);
+  const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
   const [messages, setMessages] = useState<{ [userId: string]: IMessage[] }>({});
   const [toastMessage, setToastMessage] = useState<{title: string, body: string} | null>(null);
 
@@ -24,6 +25,15 @@ export default function Home() {
     usersRef.current = users;
     activeUserRef.current = activeUser;
   }, [users, activeUser]);
+  
+  useEffect(() => {
+    // Request desktop notification permissions
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    }
+  }, []);
   
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -42,10 +52,27 @@ export default function Home() {
     });
 
     const myId = (session.user as any).id;
-    const channelName = `user-${myId}`;
+    const personalChannelName = `user-${myId}`;
+    const presenceChannelName = `presence-chat`;
     
     // Subscribe to personal pusher channel for incoming messages
-    const channel = pusherClient.subscribe(channelName);
+    const personalChannel = pusherClient.subscribe(personalChannelName);
+    
+    // Subscribe to presence channel to track online users
+    const presenceChannel = pusherClient.subscribe(presenceChannelName);
+
+    presenceChannel.bind('pusher:subscription_succeeded', (members: any) => {
+      const initialOnline = Object.keys(members.members);
+      setOnlineUsers(initialOnline);
+    });
+
+    presenceChannel.bind('pusher:member_added', (member: any) => {
+      setOnlineUsers((prev) => [...prev, member.id]);
+    });
+
+    presenceChannel.bind('pusher:member_removed', (member: any) => {
+      setOnlineUsers((prev) => prev.filter((id) => id !== member.id));
+    });
 
     const onReceiveMessage = (msg: IMessage) => {
       console.log('Received message via Pusher:', msg);
@@ -57,6 +84,13 @@ export default function Home() {
           const senderName = usersRef.current.find((u: any) => u._id === msg.senderId)?.name || 'Notification';
           setToastMessage({ title: `New message from ${senderName}`, body: msg.text });
           setTimeout(() => setToastMessage(null), 5000);
+          
+          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+            new Notification(`New message from ${senderName}`, {
+              body: msg.text,
+              icon: '/favicon.ico' // optional: replace with actual icon
+            });
+          }
           
           try {
             const audio = new Audio('/notification.mp3'); 
@@ -79,11 +113,13 @@ export default function Home() {
       });
     };
 
-    channel.bind('receive_message', onReceiveMessage);
+    personalChannel.bind('receive_message', onReceiveMessage);
 
     return () => {
-      pusherClient.unsubscribe(channelName);
-      channel.unbind_all();
+      pusherClient.unsubscribe(personalChannelName);
+      pusherClient.unsubscribe(presenceChannelName);
+      personalChannel.unbind_all();
+      presenceChannel.unbind_all();
     };
   }, [status, (session?.user as any)?.id]); // Only re-run if auth ID completely changes
 
@@ -140,6 +176,7 @@ export default function Home() {
         activeUser={activeUser} 
         onSelectUser={handleSelectUser}
         currentUser={session.user}
+        onlineUsers={onlineUsers}
       />
       {activeUser ? (
         <ChatWindow 
@@ -147,6 +184,7 @@ export default function Home() {
           messages={messages[activeUser._id] || []}
           currentUserId={(session.user as any).id}
           onSendMessage={handleSendMessage}
+          isOnline={onlineUsers.includes(activeUser._id)}
         />
       ) : (
         <div style={{flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)'}}>

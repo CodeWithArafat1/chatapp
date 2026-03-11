@@ -10,9 +10,10 @@ interface ChatWindowProps {
   messages: IMessage[];
   currentUserId: string;
   onSendMessage: (msg: string) => void;
+  isOnline: boolean;
 }
 
-export default function ChatWindow({ peer, messages, currentUserId, onSendMessage }: ChatWindowProps) {
+export default function ChatWindow({ peer, messages, currentUserId, onSendMessage, isOnline }: ChatWindowProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -33,7 +34,9 @@ export default function ChatWindow({ peer, messages, currentUserId, onSendMessag
           
           <div className="chat-header-text">
             <h2>{peer.name}</h2>
-            <span className="status">Available</span>
+            <span className="status" style={{ color: isOnline ? '#10b981' : 'var(--text-secondary)' }}>
+              {isOnline ? 'Online' : 'Offline'}
+            </span>
           </div>
         </div>
       </header>

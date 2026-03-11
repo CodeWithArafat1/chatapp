@@ -9,9 +9,10 @@ interface SidebarProps {
   activeUser: any;
   onSelectUser: (user: any) => void;
   currentUser: any;
+  onlineUsers: string[];
 }
 
-export default function Sidebar({ users, activeUser, onSelectUser, currentUser }: SidebarProps) {
+export default function Sidebar({ users, activeUser, onSelectUser, currentUser, onlineUsers }: SidebarProps) {
   return (
     <aside className="sidebar glass-panel">
       <header className="sidebar-header">
@@ -48,10 +49,20 @@ export default function Sidebar({ users, activeUser, onSelectUser, currentUser }
             onClick={() => onSelectUser(user)}
           >
             {user.image ? (
-              <img src={user.image} alt={user.name} className="room-avatar" style={{ border: 'none' }} />
+              <div className="room-avatar-container" style={{ position: 'relative', display: 'inline-block' }}>
+                <img src={user.image} alt={user.name} className="room-avatar" style={{ border: 'none' }} />
+                {onlineUsers.includes(user._id) && (
+                  <span className="online-indicator" style={{ position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, backgroundColor: '#10b981', border: '2px solid var(--surface)', borderRadius: '50%' }}></span>
+                )}
+              </div>
             ) : (
-              <div className="room-avatar">
-                 <span>{user.name.charAt(0).toUpperCase()}</span>
+              <div className="room-avatar-container" style={{ position: 'relative', display: 'inline-block' }}>
+                <div className="room-avatar">
+                   <span>{user.name.charAt(0).toUpperCase()}</span>
+                </div>
+                {onlineUsers.includes(user._id) && (
+                  <span className="online-indicator" style={{ position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, backgroundColor: '#10b981', border: '2px solid var(--surface)', borderRadius: '50%' }}></span>
+                )}
               </div>
             )}
             
