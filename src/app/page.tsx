@@ -30,7 +30,7 @@ export default function Home() {
     }
   }, [status, router]);
 
-  // Combine all socket logic into one stable effect so it doesn't re-bind on every render or state change
+  // Combine all socket logic into one stable effect
   useEffect(() => {
     if (status !== 'authenticated' || !session?.user) return;
     
@@ -43,6 +43,8 @@ export default function Home() {
     const socket = getSocket();
     const myId = (session.user as any).id;
 
+    // Use a ref for the latest state to avoid stale closures in event listeners
+    // without making the effect depend on `messages` or `activeUser`
     const onConnect = () => {
       console.log('Socket connected, registering user:', myId);
       socket.emit('register_user', myId);
@@ -52,7 +54,6 @@ export default function Home() {
       console.log('Received message:', msg);
       const peerId = msg.senderId === myId ? msg.receiverId : msg.senderId;
       
-      // If we received a message from someone else, and they aren't our front-and-center active chat
       if (msg.senderId !== myId) {
         const currentActive = activeUserRef.current;
         if (!currentActive || currentActive._id !== msg.senderId) {
@@ -60,7 +61,6 @@ export default function Home() {
           setToastMessage({ title: `New message from ${senderName}`, body: msg.text });
           setTimeout(() => setToastMessage(null), 5000);
           
-          // Play a tiny notification sound
           try {
             const audio = new Audio('/notification.mp3'); 
             audio.play().catch(() => {});
@@ -70,8 +70,8 @@ export default function Home() {
 
       setMessages((prev) => {
         const userMessages = prev[peerId] || [];
-        // Prevent duplicate messages in UI by checking ID and content
-        if (userMessages.some((m: any) => m._id === (msg as any)._id || (m.timestamp === msg.timestamp && m.text === msg.text))) {
+        // Important: Mongoose _id is stringified for comparison or we use logical dedup
+        if (userMessages.some((m: any) => m.text === msg.text && Math.abs(new Date(m.timestamp).getTime() - new Date(msg.timestamp).getTime()) < 1000)) {
           return prev;
         }
         
@@ -82,7 +82,6 @@ export default function Home() {
       });
     };
 
-    // If socket is already connected when this runs, manually register
     if (socket.connected) {
       onConnect();
     }
@@ -94,7 +93,7 @@ export default function Home() {
       socket.off('connect', onConnect);
       socket.off('receive_message', onReceiveMessage);
     };
-  }, [status, session]); // Only re-run if auth status changes
+  }, [status, (session?.user as any)?.id]); // Only re-run if auth ID completely changes
 
   const handleSelectUser = async (user: any) => {
     setActiveUser(user);
