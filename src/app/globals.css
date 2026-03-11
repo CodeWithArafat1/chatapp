@@ -135,57 +135,91 @@ body {
   animation: slideIn 0.3s ease forwards;
 }
 
-/* Toast Notifications */
+/* Toast Notifications - Messenger Style */
 .toast-notification {
   position: absolute;
-  top: 24px;
-  right: 24px;
-  background: var(--bg-secondary);
-  backdrop-filter: blur(16px);
-  border: 1px solid var(--border-glass);
-  border-radius: var(--radius-md);
-  padding: 16px 20px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  top: 20px;
+  right: 20px;
+  background: rgba(20, 30, 55, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 16px;
+  padding: 14px 16px;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(59, 130, 246, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
   display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  max-width: 320px;
+  align-items: center;
+  gap: 12px;
+  max-width: 360px;
   z-index: 100;
   color: var(--text-primary);
+}
+
+.toast-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 2px solid rgba(59, 130, 246, 0.4);
+}
+
+.toast-avatar-placeholder {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 18px;
+  color: #fff;
+  flex-shrink: 0;
 }
 
 .toast-content {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
 }
 
 .toast-content strong {
   font-size: 14px;
   font-weight: 600;
-  color: var(--accent-primary);
+  color: #f8fafc;
 }
 
 .toast-content p {
   font-size: 13px;
   color: var(--text-secondary);
-  line-height: 1.4;
+  line-height: 1.35;
   margin: 0;
-  word-break: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .toast-close {
   background: transparent;
   border: none;
   color: var(--text-secondary);
-  font-size: 20px;
+  font-size: 18px;
   line-height: 1;
   cursor: pointer;
-  padding: 0;
-  margin-top: -4px;
-  transition: color var(--transition-fast);
+  padding: 4px;
+  margin-top: -8px;
+  align-self: flex-start;
+  border-radius: 50%;
+  transition: all var(--transition-fast);
 }
 
 .toast-close:hover {
   color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.1);
 }
+

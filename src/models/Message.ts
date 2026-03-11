@@ -6,6 +6,7 @@ export interface IMessage {
   receiverId: string;
   text: string;
   timestamp: Date;
+  seen?: boolean;
 }
 
 const MessageSchema = new Schema<IMessage>(
@@ -14,6 +15,7 @@ const MessageSchema = new Schema<IMessage>(
     receiverId: { type: Schema.Types.ObjectId as any, ref: 'User', required: true },
     text: { type: String, required: true },
     timestamp: { type: Date, default: Date.now },
+    seen: { type: Boolean, default: false },
   },
   {
     timestamps: true,
@@ -27,3 +29,4 @@ MessageSchema.index({ timestamp: 1 });
 const Message = models.Message || model<IMessage>('Message', MessageSchema);
 
 export default Message;
+

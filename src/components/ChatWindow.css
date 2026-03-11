@@ -8,7 +8,7 @@
 }
 
 .chat-header {
-  height: 60px;
+  height: 64px;
   padding: 0 20px;
   display: flex;
   align-items: center;
@@ -21,7 +21,29 @@
 .chat-header-info {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
+}
+
+.chat-avatar-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.header-online-dot {
+  position: absolute;
+  bottom: 1px;
+  right: 1px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #64748b;
+  border: 2px solid rgba(15, 23, 42, 0.8);
+  transition: background 0.3s ease;
+}
+
+.header-online-dot.online {
+  background: #10b981;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
 }
 
 .chat-header-text h2 {
@@ -30,22 +52,18 @@
   margin-bottom: 2px;
 }
 
-.status {
-  font-size: 13px;
-  color: var(--accent-primary);
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.status-label {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
 }
 
-.status::before {
-  content: '';
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  background: var(--accent-primary);
-  border-radius: 50%;
-  box-shadow: 0 0 8px rgba(59, 130, 246, 0.8);
+.status-label.online {
+  color: #10b981;
+}
+
+.status-label.offline {
+  color: var(--text-secondary);
 }
 
 .messages-container {
@@ -54,7 +72,7 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
   background: url('data:image/svg+xml;utf8,<svg width="20" height="20" xmlns="http://www.w3.org/2000/svg"><circle cx="2" cy="2" r="1" fill="rgba(255,255,255,0.03)"/></svg>') repeat;
 }
 
@@ -74,51 +92,58 @@
   align-items: flex-start;
 }
 
-.message-sender {
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin-bottom: 4px;
-  margin-left: 12px;
-}
-
-.message-wrapper.sent .message-sender {
-  display: none;
-}
-
 .message-bubble {
-  padding: 10px 16px;
+  padding: 10px 14px 6px 14px;
   border-radius: 18px;
   position: relative;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .message-wrapper.sent .message-bubble {
-  background: var(--msg-sent);
+  background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
   color: #fff;
   border-bottom-right-radius: 4px;
 }
 
 .message-wrapper.received .message-bubble {
-  background: var(--msg-received);
+  background: rgba(30, 41, 59, 0.95);
   color: var(--text-primary);
   border: 1px solid var(--border-glass);
   border-bottom-left-radius: 4px;
 }
 
 .message-text {
-  font-size: 15px;
-  line-height: 1.4;
+  font-size: 14.5px;
+  line-height: 1.45;
   word-wrap: break-word;
 }
 
+.message-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 1px;
+}
+
 .message-time {
-  font-size: 11px;
-  align-self: flex-end;
-  opacity: 0.7;
-  margin-top: 2px;
+  font-size: 10.5px;
+  opacity: 0.65;
+}
+
+/* WhatsApp-style double tick */
+.message-ticks {
+  display: inline-flex;
+  align-items: center;
+  color: rgba(255, 255, 255, 0.5);
+  transition: color 0.3s ease;
+}
+
+.message-ticks.seen {
+  color: #34d399;
 }
 
 @media (max-width: 768px) {
