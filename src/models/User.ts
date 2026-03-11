@@ -6,6 +6,7 @@ export interface IUser {
   email: string;
   image?: string;
   emailVerified?: Date | null;
+  lastSeen?: Date;
 }
 
 const UserSchema = new Schema<IUser>(
@@ -14,6 +15,7 @@ const UserSchema = new Schema<IUser>(
     email: { type: String, required: true, unique: true },
     image: { type: String },
     emailVerified: { type: Date, default: null },
+    lastSeen: { type: Date, default: null },
   },
   {
     timestamps: true,

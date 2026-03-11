@@ -1,11 +1,10 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import ChatWindow from '@/components/ChatWindow';
-import { pusherClient } from '@/lib/pusherClient';
 import { IMessage } from '@/models/Message';
 
 export default function Home() {
@@ -20,6 +19,7 @@ export default function Home() {
 
   const usersRef = useRef(users);
   const activeUserRef = useRef(activeUser);
+  const lastPollTimeRef = useRef<number>(Date.now());
 
   useEffect(() => {
     usersRef.current = users;
@@ -41,110 +41,140 @@ export default function Home() {
     }
   }, [status, router]);
 
-  // Combine all Pusher logic into one stable effect
+  // Fetch users once when authenticated
   useEffect(() => {
     if (status !== 'authenticated' || !session?.user) return;
     
-    // Fetch users only once when authenticated
     fetch('/api/users').then(res => res.json()).then(data => {
       setUsers(data);
       if (data.length > 0) handleSelectUser(data[0]);
     });
+  }, [status, (session?.user as any)?.id]);
+
+  // ===== HEARTBEAT: Send heartbeat every 10 seconds to mark user as online =====
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+
+    // Send initial heartbeat immediately
+    fetch('/api/heartbeat', { method: 'POST' }).catch(() => {});
+
+    const heartbeatInterval = setInterval(() => {
+      fetch('/api/heartbeat', { method: 'POST' }).catch(() => {});
+    }, 10000); // Every 10 seconds
+
+    return () => clearInterval(heartbeatInterval);
+  }, [status]);
+
+  // ===== POLL ONLINE STATUS: Check who's online every 5 seconds =====
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+
+    const fetchOnline = () => {
+      fetch('/api/heartbeat')
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) {
+            setOnlineUsers(data);
+          }
+        })
+        .catch(() => {});
+    };
+
+    fetchOnline(); // Initial fetch
+    const onlineInterval = setInterval(fetchOnline, 5000); // Every 5 seconds
+
+    return () => clearInterval(onlineInterval);
+  }, [status]);
+
+  // ===== POLL NEW MESSAGES: Check for new messages every 2 seconds =====
+  useEffect(() => {
+    if (status !== 'authenticated' || !session?.user) return;
 
     const myId = (session.user as any).id;
-    const personalChannelName = `user-${myId}`;
-    const presenceChannelName = `presence-chat`;
-    
-    // Subscribe to personal pusher channel for incoming messages
-    const personalChannel = pusherClient.subscribe(personalChannelName);
-    
-    // Subscribe to presence channel to track online users
-    const presenceChannel = pusherClient.subscribe(presenceChannelName);
 
-    presenceChannel.bind('pusher:subscription_succeeded', (members: any) => {
-      const initialOnline = Object.keys(members.members);
-      setOnlineUsers(initialOnline);
-    });
+    const pollMessages = () => {
+      const since = lastPollTimeRef.current;
+      fetch(`/api/messages/poll?since=${since}`)
+        .then(res => res.json())
+        .then((newMsgs: any[]) => {
+          if (!Array.isArray(newMsgs) || newMsgs.length === 0) return;
 
-    presenceChannel.bind('pusher:member_added', (member: any) => {
-      setOnlineUsers((prev) => [...prev, member.id]);
-    });
+          // Update the poll timestamp to the latest message's createdAt
+          const latestTime = newMsgs.reduce((max, m) => {
+            const t = new Date(m.createdAt || m.timestamp).getTime();
+            return t > max ? t : max;
+          }, since);
+          lastPollTimeRef.current = latestTime;
 
-    presenceChannel.bind('pusher:member_removed', (member: any) => {
-      setOnlineUsers((prev) => prev.filter((id) => id !== member.id));
-    });
+          // Group new messages by peer
+          newMsgs.forEach((msg) => {
+            const peerId = msg.senderId === myId ? msg.receiverId : msg.senderId;
 
-    const onReceiveMessage = (msg: IMessage) => {
-      console.log('Received message via Pusher:', msg);
-      const peerId = msg.senderId === myId ? msg.receiverId : msg.senderId;
-      
-      if (msg.senderId !== myId) {
-        const currentActive = activeUserRef.current;
-        if (!currentActive || currentActive._id !== msg.senderId) {
-          const senderName = usersRef.current.find((u: any) => u._id === msg.senderId)?.name || 'Notification';
-          setToastMessage({ title: `New message from ${senderName}`, body: msg.text });
-          setTimeout(() => setToastMessage(null), 5000);
-          
-          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-            new Notification(`New message from ${senderName}`, {
-              body: msg.text,
-              icon: '/favicon.ico' // optional: replace with actual icon
+            // Show notification for messages from others
+            if (msg.senderId !== myId) {
+              const currentActive = activeUserRef.current;
+              if (!currentActive || currentActive._id !== msg.senderId) {
+                const senderName = usersRef.current.find((u: any) => u._id === msg.senderId)?.name || 'Someone';
+                setToastMessage({ title: `New message from ${senderName}`, body: msg.text });
+                setTimeout(() => setToastMessage(null), 5000);
+                
+                // Desktop notification
+                if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+                  new Notification(`New message from ${senderName}`, {
+                    body: msg.text,
+                    icon: '/favicon.ico'
+                  });
+                }
+                
+                try {
+                  const audio = new Audio('/notification.mp3');
+                  audio.play().catch(() => {});
+                } catch(e) {}
+              }
+            }
+
+            setMessages((prev) => {
+              const userMessages = prev[peerId] || [];
+              // Deduplicate by _id
+              if (userMessages.some((m: any) => m._id === msg._id)) {
+                return prev;
+              }
+              return {
+                ...prev,
+                [peerId]: [...userMessages, msg]
+              };
             });
-          }
-          
-          try {
-            const audio = new Audio('/notification.mp3'); 
-            audio.play().catch(() => {});
-          } catch(e) {}
-        }
-      }
-
-      setMessages((prev) => {
-        const userMessages = prev[peerId] || [];
-        // Important: Mongoose _id is stringified for comparison or we use logical dedup
-        if (userMessages.some((m: any) => m.text === msg.text && Math.abs(new Date(m.timestamp).getTime() - new Date(msg.timestamp).getTime()) < 1000)) {
-          return prev;
-        }
-        
-        return {
-          ...prev,
-          [peerId]: [...userMessages, msg]
-        };
-      });
+          });
+        })
+        .catch(() => {});
     };
 
-    personalChannel.bind('receive_message', onReceiveMessage);
+    const pollInterval = setInterval(pollMessages, 2000); // Every 2 seconds
 
-    return () => {
-      pusherClient.unsubscribe(personalChannelName);
-      pusherClient.unsubscribe(presenceChannelName);
-      personalChannel.unbind_all();
-      presenceChannel.unbind_all();
-    };
-  }, [status, (session?.user as any)?.id]); // Only re-run if auth ID completely changes
+    return () => clearInterval(pollInterval);
+  }, [status, (session?.user as any)?.id]);
 
   const handleSelectUser = async (user: any) => {
     setActiveUser(user);
-    if (!messages[user._id]) {
-      // Fetch history
-      const res = await fetch(`/api/messages/${user._id}`);
-      const history = await res.json();
-      setMessages(prev => ({ ...prev, [user._id]: history }));
-    }
+    // Always fetch latest history when selecting a user
+    const res = await fetch(`/api/messages/${user._id}`);
+    const history = await res.json();
+    setMessages(prev => ({ ...prev, [user._id]: history }));
   };
 
   const handleSendMessage = (text: string) => {
     if (!activeUser || !session?.user) return;
     
+    const myId = (session.user as any).id;
     const newMsg = {
-      id: Math.random().toString(36).substring(2, 9),
-      senderId: (session.user as any).id,
+      _id: 'temp-' + Math.random().toString(36).substring(2, 9),
+      senderId: myId,
       receiverId: activeUser._id,
       text,
       timestamp: Date.now()
     };
 
-    // Optimistically update
+    // Optimistically update UI
     setMessages((prev) => {
       const userMessages = prev[activeUser._id] || [];
       return {
@@ -153,11 +183,11 @@ export default function Home() {
       };
     });
 
-    // Send to server via REST API (Pusher will broadcast it back to receiver and other tabs)
+    // Send to server via REST API
     fetch('/api/messages/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newMsg)
+      body: JSON.stringify({ senderId: myId, receiverId: activeUser._id, text, timestamp: newMsg.timestamp })
     }).catch(err => console.error("Failed to send message", err));
   };
 
